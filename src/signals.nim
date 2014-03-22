@@ -1,0 +1,93 @@
+import typetraits
+
+type
+  TSignalCon [Arg] = object
+    obj: ref TObject
+    f: proc(x: arg)
+
+  PSignalBase* = ref object of TObject
+    ## Base signal for storage in "slots" accessor
+  PSignal* [Arg] = ref object of PSignalBase
+    con: seq[TSignalCon[Arg]]
+
+  HasSlots* = generic X
+    X is ref TObject
+    X.slots is seq[PSignalBase]
+  
+  PSlotted* = ref object of TObject
+    # a base type you can use that fulfils HasSlots
+    slots: seq[PSignalBase]
+
+
+proc `==` * [ArgT] (con:TSignalCon[ArgT]; obj: ref TObject): bool =
+  con.obj == obj
+proc disconnect* [T,ArgT] (sig:PSignal[ArgT]; obj: T) {.inline.} =
+  while(let idx = sig.con.find(obj); idx != -1):
+    when T is HasSlots:
+      if (let idx = obj.slots.find(sig); idx != -1):
+        obj.slots.del idx
+    sig.con.del idx
+
+proc clear* [ArgT] (sig: PSignal[ArgT]) {.inline.}
+proc init* [ArgT] (sig: var PSignal[ArgT]) {.inline.}=
+  if sig.isNil:
+    new(sig) do (x: PSignal[ArgT]):
+      x.clear
+  sig.con.newSeq 0
+proc initSignal*[ArgT] : PSignal[ArgT] {.inline.}=
+  result.init
+
+discard """ proc connect* [T: HasSlots; argT] (
+    sig: PSignal[ArgT]; obj: T; f: proc(self: T; arg: argT)) {.inline.} =
+  let func = proc(arg: argT) = f(obj, arg)
+  sig.con.add TSignalCon[argT](obj: obj, f: func)
+  obj.slots.add sig
+proc connect* [T: HasSlots] (
+    sig: PSignal[void]; obj: T; f: proc(self: T)) {.inline.}=
+  let func = proc() = f obj
+  sig.con.add TSignalCon[void](obj: obj, f: func)
+  obj.slots.add sig
+ """
+
+proc connect* [T, ArgT] (
+      sig: PSignal[ArgT]; 
+      obj: T; 
+      f: proc(self: T; arg: ArgT)) {.inline.}=
+  let func = proc(arg: ArgT) = f(obj, arg)
+  sig.con.add TSignalCon[ArgT](obj: obj, f: func)
+  when T is HasSlots:
+    obj.slots.add sig
+
+proc connect* [T] (
+      sig: PSignal[void]; 
+      obj: T; 
+      f: proc(self: T)){.inline.}=
+  let func = proc() = f(obj)
+  sig.con.add TSignalCon[void](obj: obj, f: func)
+  when T is HasSlots:
+    obj.slots.add sig
+
+
+proc clear* [ArgT] (sig:PSignal[ArgT]) =
+  while sig.con.len > 0:
+    sig.disconnect sig.con[0].obj
+
+proc clearSignals* (obj:HasSlots) =
+  #
+  while obj.slots.len > 0:
+    cast[PSignal[void]](obj.slots[0]).disconnect obj
+
+
+
+proc emit* [ArgT] (sig: PSignal[ArgT]; arg: ArgT){.inline.}=
+  for idx in 0 .. < sig.con.len:
+    sig.con[idx].f(arg)
+proc `()`* [ArgT] (sig: PSignal[ArgT]; arg: ArgT){.inline.} =
+  sig.emit(arg)
+
+proc emit* (sig: PSignal[void]) {.inline.} =
+  for idx in 0 .. < sig.con.len: sig.con[idx].f()
+proc `()`* (sig: PSignal[void]) {.inline.} =
+  sig.emit()
+
+  
