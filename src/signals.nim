@@ -1,4 +1,3 @@
-import typetraits
 
 type
   TSignalCon [Arg] = object
@@ -16,7 +15,7 @@ type
   
   PSlotted* = ref object of TObject
     # a base type you can use that fulfils HasSlots
-    slots: seq[PSignalBase]
+    slots*: seq[PSignalBase]
 
 
 proc `==` * [ArgT] (con:TSignalCon[ArgT]; obj: ref TObject): bool =
@@ -37,18 +36,6 @@ proc init* [ArgT] (sig: var PSignal[ArgT]) {.inline.}=
 proc initSignal*[ArgT] : PSignal[ArgT] {.inline.}=
   result.init
 
-discard """ proc connect* [T: HasSlots; argT] (
-    sig: PSignal[ArgT]; obj: T; f: proc(self: T; arg: argT)) {.inline.} =
-  let func = proc(arg: argT) = f(obj, arg)
-  sig.con.add TSignalCon[argT](obj: obj, f: func)
-  obj.slots.add sig
-proc connect* [T: HasSlots] (
-    sig: PSignal[void]; obj: T; f: proc(self: T)) {.inline.}=
-  let func = proc() = f obj
-  sig.con.add TSignalCon[void](obj: obj, f: func)
-  obj.slots.add sig
- """
-
 proc connect* [T, ArgT] (
       sig: PSignal[ArgT]; 
       obj: T; 
@@ -67,6 +54,15 @@ proc connect* [T] (
   when T is HasSlots:
     obj.slots.add sig
 
+proc connect* (
+      sig: PSignal[void];
+      f: proc()) {.inline.} =
+  sig.con.add TSignalCon[void](obj: nil, f: f)
+
+proc connect* [T] (
+      sig: PSignal[T];
+      f: proc(arg: T) ) {.inline.} =
+  sig.con.add TSignalCon[T](obj: nil, f: f)
 
 proc clear* [ArgT] (sig:PSignal[ArgT]) =
   while sig.con.len > 0:
@@ -80,6 +76,7 @@ proc clearSignals* (obj:HasSlots) =
 
 
 proc emit* [ArgT] (sig: PSignal[ArgT]; arg: ArgT){.inline.}=
+  if sig.isNil: return
   for idx in 0 .. < sig.con.len:
     sig.con[idx].f(arg)
 proc `()`* [ArgT] (sig: PSignal[ArgT]; arg: ArgT){.inline.} =
