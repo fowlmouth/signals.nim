@@ -2,21 +2,26 @@
 type
   TSignalCon [Arg] = object
     obj: ref TObject
-    f: proc(x: arg)
+    f: proc(x: Arg)
 
-  PSignalBase* = ref object of TObject
+  SignalBase* = ref object of RootObj
     ## Base signal for storage in "slots" accessor
-  PSignal* [Arg] = ref object of PSignalBase
+  Signal* [Arg] = ref object of SignalBase
     con: seq[TSignalCon[Arg]]
 
   HasSlots* = generic X
-    X is ref TObject
+    X is RootRef
     X.slots is seq[PSignalBase]
   
-  PSlotted* = ref object of TObject
+  SlottedObj* = object of RootObj
     # a base type you can use that fulfils HasSlots
-    slots*: seq[PSignalBase]
+    slots*: seq[SignalBase]
 
+{.deprecated: [
+  PSignal: Signal, 
+  PSignalBase: SignalBase,
+  PSlotted: SlottedObj
+].}
 
 proc `==` * [ArgT] (con:TSignalCon[ArgT]; obj: ref TObject): bool =
   con.obj == obj
@@ -40,8 +45,8 @@ proc connect* [T, ArgT] (
       sig: PSignal[ArgT]; 
       obj: T; 
       f: proc(self: T; arg: ArgT)) {.inline.}=
-  let func = proc(arg: ArgT) = f(obj, arg)
-  sig.con.add TSignalCon[ArgT](obj: obj, f: func)
+  let fn = proc(arg: ArgT) = f(obj, arg)
+  sig.con.add TSignalCon[ArgT](obj: obj, f: fn)
   when T is HasSlots:
     obj.slots.add sig
 
@@ -49,8 +54,8 @@ proc connect* [T] (
       sig: PSignal[void]; 
       obj: T; 
       f: proc(self: T)){.inline.}=
-  let func = proc() = f(obj)
-  sig.con.add TSignalCon[void](obj: obj, f: func)
+  let fn = proc() = f(obj)
+  sig.con.add TSignalCon[void](obj: obj, f: fn)
   when T is HasSlots:
     obj.slots.add sig
 
