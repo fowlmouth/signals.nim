@@ -6,4 +6,4 @@ description:"Signals/slots observer pattern for event-driven programming."
 license:"MIT"
 srcDir:"src"
 [Deps]
-requires: "nimrod >= 0.9.3"
+requires: "nimrod >= 0.10.2"
